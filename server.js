@@ -28,4 +28,10 @@ app.get("/token", async (req, res) => {
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Backend listo en ${port}`));
+app.listen(port, () => {
+  if (API_KEY && API_SECRET) {
+    console.log(`Backend listo en ${port}. API Key cargada: ${API_KEY.substring(0, 4)}...`);
+  } else {
+    console.log("Error: No se encontraron las variables de entorno LIVEKIT_API_KEY o LIVEKIT_API_SECRET.");
+  }
+});
