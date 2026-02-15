@@ -19,6 +19,8 @@ app.get("/token", async (req, res) => {
 
   const at = new AccessToken(API_KEY, API_SECRET, {
     identity: user,
+    ttl: '10m', // El token es válido por 10 minutos
+    nbf: Math.floor(Date.now() / 1000) - 60, // Válido desde hace 60 segundos
   });
 
   at.addGrant({ roomJoin: true, room });
