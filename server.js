@@ -24,7 +24,6 @@ app.get("/token", async (req, res) => {
   at.addGrant({ roomJoin: true, room });
 
     const token = await at.toJwt();
-  console.log("Token generado:", token);
   res.json({ token });
 });
 

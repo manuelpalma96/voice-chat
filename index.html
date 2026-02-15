@@ -57,7 +57,6 @@
         const resp = await fetch(`https://voice-chat-8ha4.onrender.com/token`);
         const data = await resp.json();
         const token = data.token;
-        console.log("Token recibido:", token);
 
         room = new Room();
 
@@ -73,13 +72,11 @@
         await room.localParticipant.setMicrophoneEnabled(true);
         handleParticipantConnected(room.localParticipant);
 
-        console.log("Conectado a la sala", room.name);
         connectBtn.style.display = "none";
         disconnectBtn.style.display = "block";
       }
 
       function handleParticipantConnected(participant) {
-        console.log("participante conectado", participant.identity);
         const participantDiv = document.createElement("div");
         participantDiv.id = participant.sid;
         participantDiv.className = "participant";
@@ -88,25 +85,21 @@
       }
 
       function handleParticipantDisconnected(participant) {
-        console.log("participante desconectado", participant.identity);
         document.getElementById(participant.sid)?.remove();
       }
 
       function handleTrackSubscribed(track, publication, participant) {
         if (track.kind === "audio") {
-          console.log("pista de audio suscrita", participant.identity);
           const element = track.attach();
           document.getElementById(participant.sid)?.appendChild(element);
         }
       }
 
       function handleTrackUnsubscribed(track, publication, participant) {
-        console.log("suscripción de pista anulada", participant.identity);
         track.detach();
       }
 
       function handleDisconnect() {
-        console.log("desconectado de la sala");
         room.localParticipant.tracks.forEach((pub) => {
           pub.track.stop();
         });
