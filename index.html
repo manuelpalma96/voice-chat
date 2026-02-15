@@ -60,6 +60,7 @@
     <div id="join-view" style="display: none;">
       <h2>Unirse a una Sala</h2>
       <input type="text" id="join-room-id" placeholder="ID de la Sala" required />
+      <input type="text" id="join-username" placeholder="Tu Nick" required />
       <input type="password" id="join-room-password" placeholder="Contraseña de la sala" required />
       <button id="join-room-btn">Unirse</button>
       <button class="back-btn">Volver</button>
@@ -68,21 +69,28 @@
     <!-- Vista de la Sala (cuando se está conectado) -->
     <div id="room-view" style="display: none;">
       <h3 id="room-title"></h3>
-      <button id="disconnect-btn">Salir</button>
+      <div>
+        <button id="mute-btn">Silenciar Micrófono</button>
+        <button id="disconnect-btn">Salir</button>
+      </div>
       <div id="participants"></div>
     </div>
 
     <script type="module">
       import { Room, RoomEvent } from "https://cdn.skypack.dev/livekit-client";
 
+      // --- Referencias a Elementos del DOM ---
       const mainView = document.getElementById('main-view');
       const createView = document.getElementById('create-view');
       const joinView = document.getElementById('join-view');
       const roomView = document.getElementById('room-view');
       const participantsDiv = document.getElementById('participants');
       const roomTitle = document.getElementById('room-title');
+      const muteBtn = document.getElementById('mute-btn');
 
+      // --- Estado de la Aplicación ---
       let room;
+      let currentRoomId;
       const SERVER_URL = 'https://voice-chat-8ha4.onrender.com';
       const LIVEKIT_URL = 'wss://voice-chat-5qhki9h7.livekit.cloud';
 
@@ -119,15 +127,16 @@
       // --- Lógica para Unirse a Sala ---
       document.getElementById('join-room-btn').onclick = async () => {
         const roomId = document.getElementById('join-room-id').value;
+        const username = document.getElementById('join-username').value;
         const password = document.getElementById('join-room-password').value;
-        if (!roomId || !password) { alert('Debes ingresar el ID y la contraseña de la sala.'); return; }
+        if (!roomId || !username || !password) { alert('Debes rellenar todos los campos.'); return; }
         
-        await connectToRoom(roomId, password);
+        await connectToRoom(roomId, password, username);
       };
 
       // --- Lógica de Conexión a LiveKit ---
-      async function connectToRoom(roomId, password) {
-        const resp = await fetch(`${SERVER_URL}/token?roomId=${roomId}&password=${password}`);
+      async function connectToRoom(roomId, password, username) {
+        const resp = await fetch(`${SERVER_URL}/token?roomId=${roomId}&password=${password}&username=${encodeURIComponent(username)}`);
 
         if (!resp.ok) {
           const errorData = await resp.json().catch(() => ({ error: 'Error desconocido.' }));
@@ -144,18 +153,57 @@
           .on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
           .on(RoomEvent.TrackSubscribed, handleTrackSubscribed)
           .on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
-          .on(RoomEvent.Disconnected, handleDisconnect);
+          .on(RoomEvent.Disconnected, handleClientDisconnect);
 
         try {
           await room.connect(LIVEKIT_URL, token);
           await room.localParticipant.setMicrophoneEnabled(true);
           
+          currentRoomId = roomId;
           roomTitle.textContent = `Sala: ${roomId}`;
           handleParticipantConnected(room.localParticipant);
+          updateMuteButton();
           showView('room-view');
         } catch (error) {
           console.error('Error al conectar con LiveKit:', error);
           alert('No se pudo conectar a la sala de voz.');
+        }
+      }
+
+      // --- Lógica de Desconexión ---
+      async function disconnectFromRoom() {
+        if (!room) return;
+        await room.disconnect();
+      }
+
+      function handleClientDisconnect() {
+        fetch(`${SERVER_URL}/leave-room`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomId: currentRoomId })
+        });
+        participantsDiv.innerHTML = '';
+        currentRoomId = null;
+        showView('main-view');
+      }
+
+      document.getElementById('disconnect-btn').onclick = disconnectFromRoom;
+      window.addEventListener('beforeunload', disconnectFromRoom);
+
+      // --- Lógica del Botón de Silencio ---
+      muteBtn.onclick = () => {
+        if (room && room.localParticipant) {
+          const mic = room.localParticipant.isMicrophoneEnabled;
+          room.localParticipant.setMicrophoneEnabled(!mic);
+          updateMuteButton();
+        }
+      };
+
+      function updateMuteButton() {
+        if (room && room.localParticipant.isMicrophoneEnabled) {
+          muteBtn.textContent = 'Silenciar Micrófono';
+        } else {
+          muteBtn.textContent = 'Activar Micrófono';
         }
       }
 
@@ -182,13 +230,6 @@
       function handleTrackUnsubscribed(track) {
         track.detach();
       }
-
-      function handleDisconnect() {
-        participantsDiv.innerHTML = '';
-        showView('main-view');
-      }
-
-      document.getElementById('disconnect-btn').onclick = () => room?.disconnect();
     </script>
   </body>
 </html>
