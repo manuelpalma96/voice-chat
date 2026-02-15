@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const { AccessToken } = require("livekit-server-sdk");
@@ -7,6 +8,10 @@ app.use(cors());
 
 const API_KEY = process.env.LIVEKIT_API_KEY;
 const API_SECRET = process.env.LIVEKIT_API_SECRET;
+
+if (!API_KEY || !API_SECRET) {
+  throw new Error("LIVEKIT_API_KEY y LIVEKIT_API_SECRET son requeridos");
+}
 
 app.get("/token", async (req, res) => {
   const room = req.query.room || "sala1";
