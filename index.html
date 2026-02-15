@@ -36,61 +36,109 @@
     </style>
   </head>
   <body>
-    <div id="login-form">
-      <h1>Voice Chat</h1>
-      <h2>Ingresa para unirte</h2>
-      <input type="text" id="username-input" placeholder="Tu nombre" required />
-      <input type="password" id="password-input" placeholder="Contraseña de la sala" required />
-      <button id="connect-btn">Entrar a la sala</button>
+    <!-- Vista Principal -->
+    <div id="main-view">
+      <h1>Voice Chat Anónimo</h1>
+      <button id="show-create-view-btn">Crear Sala</button>
+      <button id="show-join-view-btn">Unirse a Sala</button>
     </div>
-    <div id="room-controls" style="display: none;">
+
+    <!-- Vista para Crear Sala -->
+    <div id="create-view" style="display: none;">
+      <h2>Crear Nueva Sala</h2>
+      <input type="password" id="new-room-password" placeholder="Define una contraseña para la sala" required />
+      <button id="create-room-btn">Crear</button>
+      <button class="back-btn">Volver</button>
+      <div id="room-info" style="display: none; margin-top: 20px;">
+        <p>¡Sala creada! Comparte estos datos:</p>
+        <strong>ID de la Sala:</strong> <code id="room-id-display"></code><br />
+        <strong>Contraseña:</strong> <code id="room-password-display"></code>
+      </div>
+    </div>
+
+    <!-- Vista para Unirse a Sala -->
+    <div id="join-view" style="display: none;">
+      <h2>Unirse a una Sala</h2>
+      <input type="text" id="join-room-id" placeholder="ID de la Sala" required />
+      <input type="password" id="join-room-password" placeholder="Contraseña de la sala" required />
+      <button id="join-room-btn">Unirse</button>
+      <button class="back-btn">Volver</button>
+    </div>
+
+    <!-- Vista de la Sala (cuando se está conectado) -->
+    <div id="room-view" style="display: none;">
+      <h3 id="room-title"></h3>
       <button id="disconnect-btn">Salir</button>
       <div id="participants"></div>
     </div>
 
     <script type="module">
-      import {
-        Room,
-        RoomEvent,
-      } from "https://cdn.skypack.dev/livekit-client";
+      import { Room, RoomEvent } from "https://cdn.skypack.dev/livekit-client";
 
-      const loginForm = document.getElementById('login-form');
-      const roomControls = document.getElementById('room-controls');
-      const connectBtn = document.getElementById("connect-btn");
-      const disconnectBtn = document.getElementById("disconnect-btn");
-      const participantsDiv = document.getElementById("participants");
-      const usernameInput = document.getElementById('username-input');
-      const passwordInput = document.getElementById('password-input');
+      const mainView = document.getElementById('main-view');
+      const createView = document.getElementById('create-view');
+      const joinView = document.getElementById('join-view');
+      const roomView = document.getElementById('room-view');
+      const participantsDiv = document.getElementById('participants');
+      const roomTitle = document.getElementById('room-title');
 
       let room;
+      const SERVER_URL = 'https://voice-chat-8ha4.onrender.com';
+      const LIVEKIT_URL = 'wss://voice-chat-5qhki9h7.livekit.cloud';
 
-      async function connectToRoom() {
-        const username = usernameInput.value;
-        const password = passwordInput.value;
+      // --- Navegación entre Vistas ---
+      document.getElementById('show-create-view-btn').onclick = () => showView('create-view');
+      document.getElementById('show-join-view-btn').onclick = () => showView('join-view');
+      document.querySelectorAll('.back-btn').forEach(btn => btn.onclick = () => showView('main-view'));
 
-        if (!username || !password) {
-          alert('Por favor, ingresa tu nombre y la contraseña.');
-          return;
-        }
+      function showView(viewId) {
+        ['main-view', 'create-view', 'join-view', 'room-view'].forEach(id => {
+          document.getElementById(id).style.display = (id === viewId) ? 'block' : 'none';
+        });
+      }
 
-        const resp = await fetch(`https://voice-chat-8ha4.onrender.com/token?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`);
+      // --- Lógica de Creación de Sala ---
+      document.getElementById('create-room-btn').onclick = async () => {
+        const password = document.getElementById('new-room-password').value;
+        if (!password) { alert('Debes definir una contraseña.'); return; }
+
+        const resp = await fetch(`${SERVER_URL}/create-room`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
+
+        if (!resp.ok) { alert('Error al crear la sala.'); return; }
+
+        const { roomId } = await resp.json();
+        document.getElementById('room-id-display').textContent = roomId;
+        document.getElementById('room-password-display').textContent = password;
+        document.getElementById('room-info').style.display = 'block';
+      };
+
+      // --- Lógica para Unirse a Sala ---
+      document.getElementById('join-room-btn').onclick = async () => {
+        const roomId = document.getElementById('join-room-id').value;
+        const password = document.getElementById('join-room-password').value;
+        if (!roomId || !password) { alert('Debes ingresar el ID y la contraseña de la sala.'); return; }
+        
+        await connectToRoom(roomId, password);
+      };
+
+      // --- Lógica de Conexión a LiveKit ---
+      async function connectToRoom(roomId, password) {
+        const resp = await fetch(`${SERVER_URL}/token?roomId=${roomId}&password=${password}`);
 
         if (!resp.ok) {
-          const errorData = await resp.json().catch(() => ({ error: 'Error desconocido del servidor.' }));
-          alert(`Error: ${errorData.error}`);
+          const errorData = await resp.json().catch(() => ({ error: 'Error desconocido.' }));
+          alert(`Error al unirse: ${errorData.error}`);
           return;
         }
 
-        const data = await resp.json();
-        const token = data.token;
-
-        if (!token) {
-          alert('No se pudo obtener un token de acceso. Inténtalo de nuevo.');
-          return;
-        }
+        const { token } = await resp.json();
+        if (!token) { alert('No se pudo obtener el token.'); return; }
 
         room = new Room();
-
         room
           .on(RoomEvent.ParticipantConnected, handleParticipantConnected)
           .on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
@@ -98,15 +146,20 @@
           .on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
           .on(RoomEvent.Disconnected, handleDisconnect);
 
-        await room.connect("wss://voice-chat-5qhki9h7.livekit.cloud", token);
-
-        await room.localParticipant.setMicrophoneEnabled(true);
-        handleParticipantConnected(room.localParticipant);
-
-        loginForm.style.display = 'none';
-        roomControls.style.display = 'block';
+        try {
+          await room.connect(LIVEKIT_URL, token);
+          await room.localParticipant.setMicrophoneEnabled(true);
+          
+          roomTitle.textContent = `Sala: ${roomId}`;
+          handleParticipantConnected(room.localParticipant);
+          showView('room-view');
+        } catch (error) {
+          console.error('Error al conectar con LiveKit:', error);
+          alert('No se pudo conectar a la sala de voz.');
+        }
       }
 
+      // --- Manejadores de Eventos de la Sala ---
       function handleParticipantConnected(participant) {
         const participantDiv = document.createElement("div");
         participantDiv.id = participant.sid;
@@ -126,19 +179,16 @@
         }
       }
 
-      function handleTrackUnsubscribed(track, publication, participant) {
+      function handleTrackUnsubscribed(track) {
         track.detach();
       }
 
       function handleDisconnect() {
-        // El SDK de LiveKit se encarga de detener las pistas al desconectar.
-        participantsDiv.innerHTML = "";
-        loginForm.style.display = 'block';
-        roomControls.style.display = 'none';
+        participantsDiv.innerHTML = '';
+        showView('main-view');
       }
 
-      connectBtn.onclick = connectToRoom;
-      disconnectBtn.onclick = () => room?.disconnect();
+      document.getElementById('disconnect-btn').onclick = () => room?.disconnect();
     </script>
   </body>
 </html>
