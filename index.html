@@ -36,10 +36,17 @@
     </style>
   </head>
   <body>
-    <h2>Voice Chat</h2>
-    <button id="connect-btn">Entrar a la sala</button>
-    <button id="disconnect-btn" style="display: none">Salir</button>
-    <div id="participants"></div>
+    <div id="login-form">
+      <h1>Voice Chat</h1>
+      <h2>Ingresa para unirte</h2>
+      <input type="text" id="username-input" placeholder="Tu nombre" required />
+      <input type="password" id="password-input" placeholder="Contraseña de la sala" required />
+      <button id="connect-btn">Entrar a la sala</button>
+    </div>
+    <div id="room-controls" style="display: none;">
+      <button id="disconnect-btn">Salir</button>
+      <div id="participants"></div>
+    </div>
 
     <script type="module">
       import {
@@ -47,16 +54,40 @@
         RoomEvent,
       } from "https://cdn.skypack.dev/livekit-client";
 
+      const loginForm = document.getElementById('login-form');
+      const roomControls = document.getElementById('room-controls');
       const connectBtn = document.getElementById("connect-btn");
       const disconnectBtn = document.getElementById("disconnect-btn");
       const participantsDiv = document.getElementById("participants");
+      const usernameInput = document.getElementById('username-input');
+      const passwordInput = document.getElementById('password-input');
 
       let room;
 
       async function connectToRoom() {
-        const resp = await fetch(`https://voice-chat-8ha4.onrender.com/token`);
+        const username = usernameInput.value;
+        const password = passwordInput.value;
+
+        if (!username || !password) {
+          alert('Por favor, ingresa tu nombre y la contraseña.');
+          return;
+        }
+
+        const resp = await fetch(`https://voice-chat-8ha4.onrender.com/token?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`);
+
+        if (!resp.ok) {
+          const errorData = await resp.json().catch(() => ({ error: 'Error desconocido del servidor.' }));
+          alert(`Error: ${errorData.error}`);
+          return;
+        }
+
         const data = await resp.json();
         const token = data.token;
+
+        if (!token) {
+          alert('No se pudo obtener un token de acceso. Inténtalo de nuevo.');
+          return;
+        }
 
         room = new Room();
 
@@ -72,8 +103,8 @@
         await room.localParticipant.setMicrophoneEnabled(true);
         handleParticipantConnected(room.localParticipant);
 
-        connectBtn.style.display = "none";
-        disconnectBtn.style.display = "block";
+        loginForm.style.display = 'none';
+        roomControls.style.display = 'block';
       }
 
       function handleParticipantConnected(participant) {
@@ -100,12 +131,10 @@
       }
 
       function handleDisconnect() {
-        room.localParticipant.tracks.forEach((pub) => {
-          pub.track.stop();
-        });
+        // El SDK de LiveKit se encarga de detener las pistas al desconectar.
         participantsDiv.innerHTML = "";
-        connectBtn.style.display = "block";
-        disconnectBtn.style.display = "none";
+        loginForm.style.display = 'block';
+        roomControls.style.display = 'none';
       }
 
       connectBtn.onclick = connectToRoom;
