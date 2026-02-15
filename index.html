@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>LiveKit Voice Chat</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        background-color: #f0f0f0;
+        color: #333;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: 50px;
+      }
+      #participants {
+        margin-top: 20px;
+      }
+      .participant {
+        margin: 5px;
+        padding: 10px;
+        background-color: #fff;
+        border-radius: 5px;
+      }
+      button {
+        margin: 5px;
+        padding: 10px 15px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        background-color: #007bff;
+        color: white;
+      }
+      #disconnect-btn {
+        background-color: #dc3545;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Voice Chat</h2>
+    <button id="connect-btn">Entrar a la sala</button>
+    <button id="disconnect-btn" style="display: none">Salir</button>
+    <div id="participants"></div>
+
+    <script type="module">
+      import {
+        Room,
+        RoomEvent,
+      } from "https://cdn.skypack.dev/livekit-client";
+
+      const connectBtn = document.getElementById("connect-btn");
+      const disconnectBtn = document.getElementById("disconnect-btn");
+      const participantsDiv = document.getElementById("participants");
+
+      let room;
+
+      async function connectToRoom() {
+        const resp = await fetch(`http://localhost:3000/token`);
+        const data = await resp.json();
+        const token = data.token;
+        console.log("Token recibido:", token);
+
+        room = new Room();
+
+        room
+          .on(RoomEvent.ParticipantConnected, handleParticipantConnected)
+          .on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
+          .on(RoomEvent.TrackSubscribed, handleTrackSubscribed)
+          .on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
+          .on(RoomEvent.Disconnected, handleDisconnect);
+
+        await room.connect("wss://voice-chat-5qhki9h7.livekit.cloud", token);
+
+        await room.localParticipant.setMicrophoneEnabled(true);
+        handleParticipantConnected(room.localParticipant);
+
+        console.log("Conectado a la sala", room.name);
+        connectBtn.style.display = "none";
+        disconnectBtn.style.display = "block";
+      }
+
+      function handleParticipantConnected(participant) {
+        console.log("participante conectado", participant.identity);
+        const participantDiv = document.createElement("div");
+        participantDiv.id = participant.sid;
+        participantDiv.className = "participant";
+        participantDiv.innerText = participant.identity;
+        participantsDiv.appendChild(participantDiv);
+      }
+
+      function handleParticipantDisconnected(participant) {
+        console.log("participante desconectado", participant.identity);
+        document.getElementById(participant.sid)?.remove();
+      }
+
+      function handleTrackSubscribed(track, publication, participant) {
+        if (track.kind === "audio") {
+          console.log("pista de audio suscrita", participant.identity);
+          const element = track.attach();
+          document.getElementById(participant.sid)?.appendChild(element);
+        }
+      }
+
+      function handleTrackUnsubscribed(track, publication, participant) {
+        console.log("suscripción de pista anulada", participant.identity);
+        track.detach();
+      }
+
+      function handleDisconnect() {
+        console.log("desconectado de la sala");
+        room.localParticipant.tracks.forEach((pub) => {
+          pub.track.stop();
+        });
+        participantsDiv.innerHTML = "";
+        connectBtn.style.display = "block";
+        disconnectBtn.style.display = "none";
+      }
+
+      connectBtn.onclick = connectToRoom;
+      disconnectBtn.onclick = () => room?.disconnect();
+    </script>
+  </body>
+</html>
