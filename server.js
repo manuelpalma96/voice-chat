@@ -5,8 +5,8 @@ const { AccessToken } = require("livekit-server-sdk");
 const app = express();
 app.use(cors());
 
-const API_KEY = "APIDkQMBsAbQUP5";
-const API_SECRET = "GLbOPMS49sIiEH5qC6LpUcNj1SSp9hezhJe4yBReKCB";
+const API_KEY = process.env.LIVEKIT_API_KEY;
+const API_SECRET = process.env.LIVEKIT_API_SECRET;
 
 app.get("/token", async (req, res) => {
   const room = req.query.room || "sala1";
